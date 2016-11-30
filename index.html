@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Example Map</title>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.5.3/d3.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.9/topojson.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="datamaps.world.js"></script>
+    <style media="screen">
+      #bubbles {
+        margin: 0 auto;
+        background: antiquewhite;
+      }
+      .cloudbuttons,
+      .planbuttons {
+        padding: 10px;
+        border: solid;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cloudbuttons">
+      <button type="button" name="button" onclick="MapModule.changeProvider('amazon')">Amazon</button>
+      <button type="button" name="button" onclick="MapModule.changeProvider('google')">Google</button>
+      <button type="button" name="button" onclick="MapModule.changeProvider('azure')">Azure</button>
+      <span id="selected-provider"></span>
+    </div>
+    <div class="planbuttons">
+      <button type="button" name="button" onclick="MapModule.changePlan('sandbox')">Sandbox</button>
+      <button type="button" name="button" onclick="MapModule.changePlan('shared')">Shared</button>
+      <button type="button" name="button" onclick="MapModule.changePlan('dedicated')">Dedicated</button>
+      <span id="selected-plan"></span>
+    </div>
+    <div class="planbuttons">
+      <button type="button" name="button" onclick="MapModule.showSelected()">Next</button>
+      <span id="selected-location"></span>
+    </div>
+
+    <div id="bubbles" style="position: relative; width: 800px; height: 500px;"></div>
+    <script>
+    var MapModule = (function(d3) {
+      var selectedProvider = null,
+          selectedPlan = null,
+          selectedLocation = null;
+
+      var googleLocations = [
+        {
+          name: 'asia-east1',
+          latitude: 24.051796,
+          longitude: 120.516135,
+          fillKey: 'available',
+          provider: 'google',
+          plan: 'sandbox'
+        },
+        {
+          name: 'europe-west1',
+          latitude: 50.449109,
+          longitude: 3.81837,
+          fillKey: 'available',
+          provider: 'google',
+          plan: 'shared'
+        },
+        {
+          name: 'us-east1',
+          latitude: 33.126062,
+          longitude: -80.00877,
+          fillKey: 'available',
+          provider: 'google',
+          plan: 'dedicated'
+        }
+      ];
+      var awsLocations = [
+        {
+          name: 'ap-northeast-1',
+          latitude: 35.689487,
+          longitude:  139.691706,
+          fillKey: 'available',
+          provider: 'amazon',
+          plan: 'sandbox'
+        },
+        {
+          name: 'us-east-1',
+          latitude: 36.708909,
+          longitude: -81.971108,
+          fillKey: 'available',
+          provider: 'amazon',
+          plan: 'sandbox'
+        }
+      ];
+      var azureLocations = [
+        {
+          name: 'Central US',
+          provider: 'azure',
+          fillKey: 'available',
+          latitude: 41.878003,
+          longitude: -93.097702,
+          plan: 'shared'
+        },
+        {
+          name: 'Brazil South',
+          provider: 'azure',
+          fillKey: 'available',
+          latitude: -23.550520,
+          longitude: -46.633309,
+          plan: 'dedicated'
+        }
+      ]
+
+      var locations = [].concat(awsLocations, googleLocations, azureLocations);
+
+      var COLORS = {
+        defaultFill:  '#ABDDA4',
+        unavailable:  '#EEEEEE',
+        selected:     '#F0AD4E',
+        available:    '#337AB7'
+      };
+
+      var bubble_map = new Datamap({
+        element: document.getElementById("bubbles"),
+        projection: 'mercator',
+        fills: COLORS,
+        geographyConfig: {
+          popupOnHover: false,
+          highlightOnHover: false
+        },
+        bubblesConfig: {
+          highlightOnHover: false,
+          radius: 5,
+          popupTemplate: function(geo, data) {
+            return [
+              '<div class="hoverinfo">',
+                'name: ' + data.name + '<br /> ',
+                'provider: ' + data.provider + '<br /> ',
+                'plan: ' + data.plan + '<br /> ',
+              '</div>'
+            ].join('');
+          }
+        }
+      });
+
+      function setSelected(selectedName) {
+        for (var i = 0; i < locations.length; i++) {
+          var location = locations[i];
+          if (location.fillKey === 'selected') {
+            location.fillKey = 'available';
+          }
+          if (selectedName === location.name) {
+            selectedLocation = location;
+            location.fillKey = 'selected';
+          }
+        }
+      }
+      function colorBubbles() {
+        bubble_map.bubbles(locations);
+        var bubbles = d3.select('g.bubbles').selectAll('circle.datamaps-bubble');
+        bubbles.style('fill', function (data) { return COLORS[data.fillKey]; });
+      }
+
+
+      function updateLocations(locations, selectedProvider, selectedPlan) {
+        locations.map(function(location) {
+          var providerAvailable = selectedProvider === null || location.provider === selectedProvider;
+          var planAvailable = selectedPlan === null || location.plan === selectedPlan;
+          location.fillKey = providerAvailable && planAvailable ? 'available' : 'unavailable';
+          return location;
+        });
+      }
+
+      function handleLocationClick(location) {
+        if (location.fillKey === 'unavailable') {
+          console.log('cant do that');
+        }
+        else {
+          setSelected(location.name);
+        }
+        colorBubbles();
+      }
+
+      $(document).ready(function() {
+        bubble_map.bubbles(locations);
+        d3.select('g.bubbles')
+          .selectAll('circle.datamaps-bubble')
+          .on('click', handleLocationClick);
+      });
+
+      return {
+        changeProvider: function(provider) {
+          selectedLocation = null;
+          selectedProvider = provider;
+          updateLocations(locations, selectedProvider, selectedPlan);
+          $('#selected-provider').html(selectedProvider);
+          colorBubbles();
+        },
+        changePlan: function(plan) {
+          selectedLocation = null;
+          selectedPlan = plan;
+          updateLocations(locations, selectedProvider, selectedPlan);
+          $('#selected-plan').html(selectedPlan);
+          colorBubbles();
+        },
+        showSelected: function() {
+          $('#selected-location').html(JSON.stringify(selectedLocation));
+        }
+      };
+    })(d3);
+    </script>
+  </body>
+</html>
